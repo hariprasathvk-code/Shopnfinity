@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <style>
+    body {
+      display: flex;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f8;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background-color: #222;
+      color: #fff;
+      height: 100vh;
+      position: fixed;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 20px;
+    }
+
+    .sidebar h2 {
+      margin-bottom: 20px;
+    }
+
+    .sidebar button {
+      background: none;
+      border: none;
+      color: white;
+      padding: 12px 20px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .sidebar button:hover,
+    .sidebar button.active {
+      background-color: #444;
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: 220px;
+      padding: 20px;
+      width: 100%;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #fff;
+      padding: 10px 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .admin-section {
+      display: none;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #333;
+      color: white;
+    }
+
+    /* Pagination */
+    .pagination {
+      margin-top: 15px;
+      text-align: center;
+    }
+
+    .pagination button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      margin: 2px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .pagination button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Menu -->
+  <div class="sidebar">
+    <h2>Admin</h2>
+    <button class="menu-btn active" data-section="categoriesSection">Categories</button>
+    <button class="menu-btn" data-section="productsSection">Products</button>
+    <button class="menu-btn" data-section="customersSection">Customers</button>
+    <button class="menu-btn" data-section="reportsSection">Reports</button>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <header>
+      <h1>Admin Dashboard</h1>
+      <div class="user-info">
+        <span id="adminName">Welcome, Admin</span>
+      </div>
+    </header>
+
+    <!-- Categories -->
+    <section id="categoriesSection" class="admin-section" style="display:block;">
+      <h2>Categories</h2>
+      <input type="text" id="newCategory" placeholder="Category Name" />
+      <button id="addCategoryBtn">Add Category</button>
+      <table id="categoriesTable">
+        <thead>
+          <tr><th>Name</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="pagination" id="catPagination"></div>
+    </section>
+
+    <!-- Products -->
+    <section id="productsSection" class="admin-section">
+      <h2>Products</h2>
+      <div class="product-form">
+        <input type="text" id="productTitle" placeholder="Title" />
+        <input type="text" id="productDesc" placeholder="Description" />
+        <input type="number" id="productPrice" placeholder="Price" />
+        <input type="number" id="productQty" placeholder="Quantity" />
+        <input type="text" id="productImage" placeholder="Image URL" />
+        <select id="productCat"></select>
+        <button id="addProductBtn">Add Product</button>
+      </div>
+      <table id="productTable">
+        <thead>
+          <tr><th>Title</th><th>Description</th><th>Category</th><th>Price</th><th>Qty</th><th>Image</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="pagination" id="prodPagination"></div>
+    </section>
+
+    <!-- Customers -->
+    <section id="customersSection" class="admin-section">
+      <h2>Customers</h2>
+      <table id="customerTable">
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Credit Limit</th><th>Credit Used</th><th>Actions</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="pagination" id="custPagination"></div>
+    </section>
+
+    <!-- Reports -->
+    <section id="reportsSection" class="admin-section">
+      <h2>Reports</h2>
+      <div class="report-filters">
+        <label>From: <input type="date" id="reportFrom" /></label>
+        <label>To: <input type="date" id="reportTo" /></label>
+      </div>
+      <div class="report-buttons">
+        <button id="viewCustomerReport">Customer Report</button>
+        <button id="viewInventoryReport">Inventory Report</button>
+        <button id="viewSalesReport">Sales Report</button>
+      </div>
+      <div id="reportContainer"></div>
+      <canvas id="reportChart" width="400" height="200"></canvas>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/admin.js"></script>
+
+  <script>
+    // Sidebar navigation toggle
+    $('.menu-btn').on('click', function() {
+      $('.menu-btn').removeClass('active');
+      $(this).addClass('active');
+
+      const sectionId = $(this).data('section');
+      $('.admin-section').hide();
+      $('#' + sectionId).show();
+    });
+  </script>
+
+</body>
+</html>
