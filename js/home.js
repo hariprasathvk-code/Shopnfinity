@@ -148,7 +148,15 @@ function addToCart(productId) {
   if (existing) existing.qty += qty;
   else {
     const product = products.find(p => p.id === productId);
-    cart.push({ id: product.id, title: product.title, price: product.price, qty });
+    cart.push({
+  id: product.id,
+  title: product.title,
+  price: product.price,
+  qty,
+  description: product.des || product.description || "",
+  image: product.image || "https://via.placeholder.com/150" // Important
+});
+
   }
   sessionStorage.setItem("cart", JSON.stringify(cart));
   alert(`${qty} ${products.find(p => p.id === productId).title} added to cart`);

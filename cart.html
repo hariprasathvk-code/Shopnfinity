@@ -3,9 +3,210 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Online Shopping - Cart</title>
+  <title>My Cart | Flipkart Style</title>
   <link rel="stylesheet" href="css/style.css" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f1f3f6;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background-color: #2874f0;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 40px;
+    }
+
+    header h1 {
+      font-size: 22px;
+      font-weight: 500;
+    }
+
+    header .user-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    main {
+      display: flex;
+      gap: 20px;
+      padding: 30px;
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    /* Left Side - Cart Items */
+    #cartContainer {
+      flex: 2;
+      background-color: #fff;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+
+    .cart-item {
+      display: flex;
+      gap: 20px;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 20px 0;
+      align-items: center;
+    }
+
+    .cart-item img {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 5px;
+    }
+
+    .item-details {
+      flex: 1;
+    }
+
+    .item-details h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .item-details p {
+      margin: 5px 0;
+      color: #777;
+    }
+
+    .price {
+      font-size: 18px;
+      font-weight: 600;
+      color: #212121;
+    }
+
+    .quantity-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.quantity-controls button {
+  background: #000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 30px;
+  height: 30px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.quantity-controls button:hover {
+  background: #444;
+}
+
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #2874f0;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    /* Right Side - Summary */
+    .cart-summary {
+      flex: 1;
+      background-color: #fff;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 20px;
+      height: fit-content;
+    }
+
+    .cart-summary h3 {
+      border-bottom: 1px solid #e0e0e0;
+      padding-bottom: 10px;
+      margin-bottom: 15px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 10px 0;
+      color: #212121;
+    }
+
+    .summary-row.total {
+      font-weight: 700;
+      border-top: 1px solid #e0e0e0;
+      padding-top: 10px;
+    }
+
+    #checkoutBtn {
+      background-color: #fb641b;
+      color: white;
+      border: none;
+      width: 100%;
+      padding: 12px;
+      border-radius: 3px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+
+    #checkoutBtn:hover {
+      background-color: #f75d13;
+    }
+    .cart-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  border-bottom: 1px solid #ddd;
+  padding: 15px 0;
+}
+
+.cart-item img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.item-details h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.item-details p.price {
+  color: #388e3c;
+  font-weight: 600;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #e53935;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.cart-item img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+
+  </style>
 </head>
 <body>
 
@@ -18,19 +219,25 @@
   </header>
 
   <main>
-    <section id="cartContainer"></section>
+    <!-- Left: Cart Items -->
+    <section id="cartContainer">
+      <!-- Dynamic cart items go here -->
+    </section>
 
+    <!-- Right: Summary -->
     <div class="cart-summary">
-      <p>Total Items: <span id="totalItems">0</span></p>
-      <p>Total Amount: ₹<span id="totalAmount">0</span></p>
+      <h3>PRICE DETAILS</h3>
+      <div class="summary-row"><span>Price (<span id="totalItems">0</span> items)</span> <span>₹<span id="totalAmount">0</span></span></div>
+      <div class="summary-row"><span>Delivery Charges</span> <span style="color: green;">FREE</span></div>
+      <div class="summary-row total"><span>Total Amount</span> <span>₹<span id="finalAmount">0</span></span></div>
 
       <label for="paymentMethod">Payment Method:</label>
-      <select id="paymentMethod">
+      <select id="paymentMethod" style="width: 100%; padding: 8px; margin-top: 10px; border: 1px solid #ccc; border-radius: 4px;">
         <option value="cash">Cash</option>
         <option value="credit">Credit</option>
       </select>
 
-      <button id="checkoutBtn">Checkout</button>
+      <button id="checkoutBtn">PLACE ORDER</button>
     </div>
   </main>
 
