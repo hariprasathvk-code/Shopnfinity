@@ -1,108 +1,106 @@
-// js/cart.js
+// cart.js
 
-// Check login
-const user = JSON.parse(sessionStorage.getItem("user"));
-if (!user) window.location.href = "index.html";
-
-$('#userName').text(`Hello, ${user.name}`);
-
-// Logout
-$('#logoutBtn').click(() => {
-  sessionStorage.clear();
-  window.location.href = "index.html";
-});
-
-// Load cart from sessionStorage
 let cart = JSON.parse(sessionStorage.getItem("cart")) || [];
 
+// Render the cart items
 function renderCart() {
-  const container = $('#cartContainer');
+  const container = $("#cartContainer");
   container.empty();
 
   if (cart.length === 0) {
-    container.html('<p>Your cart is empty.</p>');
-    $('#totalItems').text(0);
-    $('#totalAmount').text(0);
+    container.html(`<h3 style="text-align:center; color:#555;">Your cart is empty</h3>`);
+    $(".cart-summary").hide();
     return;
   }
 
-  let totalAmount = 0;
-  let totalItems = 0;
+  $(".cart-summary").show();
 
   cart.forEach((item, index) => {
-    const itemTotal = item.price * item.qty;
-    totalAmount += itemTotal;
-    totalItems += item.qty;
-
     container.append(`
       <div class="cart-item" data-index="${index}">
-        <h3>${item.title}</h3>
-        <p>Price: ₹${item.price}</p>
-        <label>Qty:</label>
-        <input type="number" min="1" value="${item.qty}" class="itemQty" />
-        <p>Subtotal: ₹<span class="itemSubtotal">${itemTotal}</span></p>
-        <button class="removeItemBtn">Remove</button>
+        <img src="${item.image || 'https://via.placeholder.com/100'}" alt="${item.title}">
+        <div class="item-details">
+          <h3>${item.title}</h3>
+          <p>${item.description}</p>
+          <p class="price">₹${item.price}</p>
+
+          <div class="quantity-controls">
+            <button class="decreaseQty">-</button>
+            <span>${item.qty}</span>
+            <button class="increaseQty">+</button>
+          </div>
+
+          <button class="remove-btn">REMOVE</button>
+        </div>
       </div>
     `);
   });
 
-  $('#totalItems').text(totalItems);
-  $('#totalAmount').text(totalAmount);
+  updateSummary();
 }
 
-// Update quantity
-$(document).on('input', '.itemQty', function () {
-  const index = $(this).closest('.cart-item').data('index');
-  const newQty = parseInt($(this).val());
-  if (newQty <= 0) return alert("Quantity must be at least 1");
-  cart[index].qty = newQty;
+// Update summary (price & totals)
+function updateSummary() {
+  let totalItems = 0;
+  let totalAmount = 0;
+
+  cart.forEach(item => {
+    totalItems += item.qty;
+    totalAmount += item.price * item.qty;
+  });
+
+  $("#totalItems").text(totalItems);
+  $("#totalAmount").text(totalAmount.toFixed(2));
+  $("#finalAmount").text(totalAmount.toFixed(2));
+
   sessionStorage.setItem("cart", JSON.stringify(cart));
+}
+
+// Quantity increase
+$(document).on("click", ".increaseQty", function () {
+  const index = $(this).closest(".cart-item").data("index");
+  cart[index].qty += 1;
+  renderCart();
+});
+
+// Quantity decrease
+$(document).on("click", ".decreaseQty", function () {
+  const index = $(this).closest(".cart-item").data("index");
+  if (cart[index].qty > 1) {
+    cart[index].qty -= 1;
+  } else {
+    cart.splice(index, 1); // Remove if quantity goes to 0
+  }
   renderCart();
 });
 
 // Remove item
-$(document).on('click', '.removeItemBtn', function () {
-  const index = $(this).closest('.cart-item').data('index');
+$(document).on("click", ".remove-btn", function () {
+  const index = $(this).closest(".cart-item").data("index");
   cart.splice(index, 1);
-  sessionStorage.setItem("cart", JSON.stringify(cart));
   renderCart();
 });
 
 // Checkout
-$('#checkoutBtn').click(() => {
-  if (cart.length === 0) return alert("Cart is empty!");
+$("#checkoutBtn").click(() => {
+  const paymentMethod = $("#paymentMethod").val();
+  if (cart.length === 0) return alert("Your cart is empty!");
 
-  const paymentMethod = $('#paymentMethod').val();
-  const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  // You can later push this to Firebase orders collection
+  alert(`Order placed successfully using ${paymentMethod.toUpperCase()} payment!`);
 
-  if (paymentMethod === 'credit') {
-    const customer = JSON.parse(sessionStorage.getItem("user"));
-    const creditLimit = 1000; // Example, you can make dynamic later
-    const creditUsed = sessionStorage.getItem("creditUsed") || 0;
-    if (totalAmount + parseInt(creditUsed) > creditLimit) {
-      return alert(`Credit limit exceeded! Max: ₹${creditLimit}`);
-    }
-    sessionStorage.setItem("creditUsed", parseInt(creditUsed) + totalAmount);
-  }
-
-  // Save order to sessionStorage (simulate Firebase order)
-  let orders = JSON.parse(sessionStorage.getItem("orders")) || [];
-  const newOrder = {
-    id: "order_" + Date.now(),
-    items: cart,
-    totalAmount,
-    paymentMethod,
-    date: new Date().toLocaleString()
-  };
-  orders.push(newOrder);
-  sessionStorage.setItem("orders", JSON.stringify(orders));
-
-  // Clear cart
   cart = [];
-  sessionStorage.setItem("cart", JSON.stringify(cart));
-  alert("Order placed successfully!");
+  sessionStorage.removeItem("cart");
   renderCart();
 });
 
+// Logout
+$("#logoutBtn").click(() => {
+  sessionStorage.clear();
+  window.location.href = "login.html";
+});
+
 // Initial render
-renderCart();
+$(document).ready(() => {
+  renderCart();
+});
