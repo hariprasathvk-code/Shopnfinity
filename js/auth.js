@@ -10,7 +10,7 @@ async function handleCredentialResponse(response) {
   try {
     const credential = response.credential;
 
-    // Exchange Google ID token for Firebase custom token (via REST)
+    // Exchange Google ID token for Firebase token
     const firebaseRes = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_API_KEY}`,
       {
@@ -33,16 +33,48 @@ async function handleCredentialResponse(response) {
       return;
     }
 
-    // Save login info in session storage
+    // Save user info in sessionStorage
     const userInfo = {
       email: data.email,
       name: data.displayName,
       photo: data.photoUrl,
+      uid: data.localId,
       idToken: data.idToken,
       expiresIn: data.expiresIn,
     };
-
     sessionStorage.setItem("user", JSON.stringify(userInfo));
+
+    // --- Check if user already exists in Firestore ---
+    const userDocUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users/${userInfo.uid}`;
+    
+    let exists = false;
+    try {
+      const res = await fetch(userDocUrl, {
+        headers: { Authorization: `Bearer ${userInfo.idToken}` }
+      });
+      if (res.ok) exists = true;
+    } catch (err) {
+      console.log("User does not exist, creating new document...");
+    }
+
+    // --- Create user if not exists ---
+    if (!exists) {
+      const newUserDoc = {
+        email: userInfo.email,
+        name: userInfo.name,
+        photo: userInfo.photo,
+        uid: userInfo.uid
+      };
+
+      await fetch(userDocUrl, {
+        method: "PATCH", // Creates the document
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${userInfo.idToken}`
+        },
+        body: JSON.stringify({ fields: toFirestoreFields(newUserDoc) })
+      });
+    }
 
     // Redirect based on role
     if (userInfo.email === ADMIN_EMAIL) {
@@ -50,10 +82,21 @@ async function handleCredentialResponse(response) {
     } else {
       window.location.href = "home.html";
     }
+
   } catch (err) {
     console.error("Error during sign-in:", err);
   }
 }
+
+// Helper: convert JS object to Firestore fields
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (let key in obj) {
+    fields[key] = { stringValue: obj[key] || "" };
+  }
+  return fields;
+}
+
 
 // --- Logout Helper ---
 function logout() {
