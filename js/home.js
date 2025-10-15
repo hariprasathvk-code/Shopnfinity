@@ -27,7 +27,7 @@ let products = [];
 let currentPage = 1;
 const pageSize = 10;
 
-// --------- Firestore Helper (reuse from firebase.js) ---------
+// --------- Firestore Helper ---------
 const PROJECT_ID = "shopnfinity";
 const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
@@ -53,6 +53,55 @@ async function getDocuments(collection) {
   const data = await res.json();
   if (!data.documents) return [];
   return data.documents.map(parseFirestoreDoc);
+}
+
+// Firestore: fetch user's cart
+async function fetchCartFromDB() {
+  try {
+    const res = await fetch(`${BASE_URL}/users/${user.uid}/cart`, {
+      headers: { Authorization: `Bearer ${user.idToken}` }
+    });
+    const data = await res.json();
+    if (!data.documents) return [];
+    return data.documents.map(doc => {
+      const fields = {};
+      for (let key in doc.fields) {
+        const val = doc.fields[key];
+        if (val.stringValue !== undefined) fields[key] = val.stringValue;
+        else if (val.integerValue !== undefined) fields[key] = parseInt(val.integerValue);
+      }
+      return { id: doc.name.split("/").pop(), ...fields };
+    });
+  } catch (err) {
+    console.error("Error fetching cart from DB:", err);
+    return [];
+  }
+}
+
+// Firestore: add/update cart item
+async function updateCartItemInDB(item) {
+  try {
+    await fetch(`${BASE_URL}/users/${user.uid}/cart/${item.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${user.idToken}`
+      },
+      body: JSON.stringify({ fields: toFirestoreFields(item) })
+    });
+  } catch (err) {
+    console.error("Error updating cart in DB:", err);
+  }
+}
+
+// Helper: convert JS object to Firestore fields
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (let key in obj) {
+    if (typeof obj[key] === "number") fields[key] = { integerValue: obj[key] };
+    else fields[key] = { stringValue: obj[key] };
+  }
+  return fields;
 }
 
 // --------- Load Categories ---------
@@ -139,33 +188,59 @@ function updateCartCount() {
   $('#cartCount').text(total);
 }
 
-function addToCart(productId) {
+async function addToCart(productId) {
   const qty = parseInt($(`#qty_${productId}`).val());
   if (qty <= 0) return alert("Quantity must be at least 1");
 
   let cart = JSON.parse(sessionStorage.getItem("cart")) || [];
   const existing = cart.find(item => item.id === productId);
-  if (existing) existing.qty += qty;
-  else {
-    const product = products.find(p => p.id === productId);
-    cart.push({
-  id: product.id,
-  title: product.title,
-  price: product.price,
-  qty,
-  description: product.des || product.description || "",
-  image: product.image || "https://via.placeholder.com/150" // Important
-});
+  const product = products.find(p => p.id === productId);
 
+  if (!product) return alert("Product not found!");
+
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    cart.push({
+      id: product.id,
+      title: product.title,
+      price: product.price,
+      qty,
+      description: product.des || product.description || "",
+      image: product.image || "https://via.placeholder.com/150"
+    });
   }
+
   sessionStorage.setItem("cart", JSON.stringify(cart));
-  alert(`${qty} ${products.find(p => p.id === productId).title} added to cart`);
+  alert(`${qty} ${product.title} added to cart`);
   updateCartCount();
+
+  // --- Sync with Firestore ---
+  for (let item of cart) {
+    await updateCartItemInDB(item);
+  }
 }
 
 // --------- Initial Load ---------
 $(document).ready(async () => {
   await fetchCategories();
   await fetchProducts();
+  
+  // Load user cart from Firestore and merge with sessionStorage
+  const dbCart = await fetchCartFromDB();
+  const sessionCart = JSON.parse(sessionStorage.getItem("cart")) || [];
+
+  // Merge carts (Firestore cart overrides sessionStorage if conflict)
+  const mergedCart = [...sessionCart];
+  for (let dbItem of dbCart) {
+    const existing = mergedCart.find(i => i.id === dbItem.id);
+    if (existing) {
+      existing.qty = dbItem.qty;
+    } else {
+      mergedCart.push(dbItem);
+    }
+  }
+
+  sessionStorage.setItem("cart", JSON.stringify(mergedCart));
   updateCartCount();
 });

@@ -1,8 +1,95 @@
-// cart.js
+const user = JSON.parse(sessionStorage.getItem("user"));
+if (!user) window.location.href = "index.html";
 
-let cart = JSON.parse(sessionStorage.getItem("cart")) || [];
+let cart = [];
 
-// Render the cart items
+// Firestore base
+const PROJECT_ID = "shopnfinity";
+const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+// Helper: Convert JS object to Firestore fields
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (let key in obj) {
+    if (typeof obj[key] === "number") fields[key] = { integerValue: obj[key] };
+    else fields[key] = { stringValue: obj[key] };
+  }
+  return fields;
+}
+
+// --------- Firestore Helpers ---------
+
+// Fetch cart for current user
+async function fetchCartFromDB() {
+  try {
+    const res = await fetch(`${BASE_URL}/users/${user.uid}/cart`, {
+      headers: { Authorization: `Bearer ${user.idToken}` }
+    });
+    const data = await res.json();
+    if (!data.documents) return [];
+    return data.documents.map(doc => {
+      const fields = {};
+      for (let key in doc.fields) {
+        const val = doc.fields[key];
+        if (val.stringValue !== undefined) fields[key] = val.stringValue;
+        else if (val.integerValue !== undefined) fields[key] = parseInt(val.integerValue);
+      }
+      return { id: doc.name.split("/").pop(), ...fields };
+    });
+  } catch (err) {
+    console.error("Error fetching cart from DB:", err);
+    return [];
+  }
+}
+
+// Add or update cart item in Firestore
+// Add or update cart item in Firestore (robust)
+async function updateCartItemInDB(item) {
+  const docUrl = `${BASE_URL}/users/${user.uid}/cart/${item.id}`;
+  const body = { fields: toFirestoreFields(item) };
+
+  try {
+    // Try PATCH first (update existing document)
+    await fetch(`${docUrl}?currentDocument.exists=true`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${user.idToken}`
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (err) {
+    // If PATCH fails (document doesn't exist), create it with POST
+    try {
+      await fetch(`${BASE_URL}/users/${user.uid}/cart?documentId=${item.id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.idToken}`
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (err2) {
+      console.error("Error creating cart item in DB:", err2);
+    }
+  }
+}
+
+
+// Remove cart item from Firestore
+async function removeCartItemFromDB(itemId) {
+  try {
+    await fetch(`${BASE_URL}/users/${user.uid}/cart/${itemId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${user.idToken}` }
+    });
+  } catch (err) {
+    console.error("Error deleting cart item from DB:", err);
+  }
+}
+
+// --------- Cart Functions ---------
+
 function renderCart() {
   const container = $("#cartContainer");
   container.empty();
@@ -39,7 +126,6 @@ function renderCart() {
   updateSummary();
 }
 
-// Update summary (price & totals)
 function updateSummary() {
   let totalItems = 0;
   let totalAmount = 0;
@@ -57,38 +143,45 @@ function updateSummary() {
 }
 
 // Quantity increase
-$(document).on("click", ".increaseQty", function () {
+$(document).on("click", ".increaseQty", async function () {
   const index = $(this).closest(".cart-item").data("index");
   cart[index].qty += 1;
   renderCart();
+  await updateCartItemInDB(cart[index]);
 });
 
 // Quantity decrease
-$(document).on("click", ".decreaseQty", function () {
+$(document).on("click", ".decreaseQty", async function () {
   const index = $(this).closest(".cart-item").data("index");
   if (cart[index].qty > 1) {
     cart[index].qty -= 1;
+    await updateCartItemInDB(cart[index]);
   } else {
-    cart.splice(index, 1); // Remove if quantity goes to 0
+    await removeCartItemFromDB(cart[index].id);
+    cart.splice(index, 1);
   }
   renderCart();
 });
 
 // Remove item
-$(document).on("click", ".remove-btn", function () {
+$(document).on("click", ".remove-btn", async function () {
   const index = $(this).closest(".cart-item").data("index");
+  await removeCartItemFromDB(cart[index].id);
   cart.splice(index, 1);
   renderCart();
 });
 
 // Checkout
-$("#checkoutBtn").click(() => {
+$("#checkoutBtn").click(async () => {
   const paymentMethod = $("#paymentMethod").val();
   if (cart.length === 0) return alert("Your cart is empty!");
-
-  // You can later push this to Firebase orders collection
+  
   alert(`Order placed successfully using ${paymentMethod.toUpperCase()} payment!`);
 
+  // Clear cart both locally and in DB
+  for (let item of cart) {
+    await removeCartItemFromDB(item.id);
+  }
   cart = [];
   sessionStorage.removeItem("cart");
   renderCart();
@@ -100,230 +193,9 @@ $("#logoutBtn").click(() => {
   window.location.href = "index.html";
 });
 
-// Initial render
-$(document).ready(() => {
-  renderCart();
-});
-
-/*
-// cart.js
-
-const FIREBASE_PROJECT_ID = "shopnfinity"; // Your Firebase project ID
-const FIREBASE_API_KEY = "AIzaSyCCa_hDjwjubm1FXLuGo5YMfRIueoDgUew"; // Your Firebase Web API Key
-const BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
-
-let cart = [];
-const user = JSON.parse(sessionStorage.getItem("user"));
-if (!user) window.location.href = "index.html";
-
-// ---------------- Helper: parse Firestore cart document ----------------
-function parseFirestoreCart(doc) {
-  const items = doc.fields?.items?.arrayValue?.values || [];
-  return items.map(item => {
-    const fields = item.mapValue.fields;
-    return {
-      id: fields.id.stringValue,
-      title: fields.title.stringValue,
-      description: fields.description.stringValue,
-      price: parseFloat(fields.price.doubleValue || fields.price.integerValue),
-      qty: parseInt(fields.qty.integerValue),
-      image: fields.image.stringValue
-    };
-  });
-}
-
-// ---------------- Load Cart from Firestore ----------------
-async function loadCart() {
-  try {
-    const res = await fetch(`${BASE_URL}/carts/${user.uid}?key=${FIREBASE_API_KEY}`);
-    if (!res.ok) {
-      cart = [];
-      renderCart();
-      return;
-    }
-    const data = await res.json();
-    cart = parseFirestoreCart(data);
-    renderCart();
-  } catch (err) {
-    console.error("Error loading cart:", err);
-    cart = [];
-    renderCart();
-  }
-}
-
-// ---------------- Save Cart to Firestore ----------------
-async function saveCart() {
-  try {
-    const firestoreItems = {
-      items: {
-        arrayValue: {
-          values: cart.map(item => ({
-            mapValue: {
-              fields: {
-                id: { stringValue: item.id },
-                title: { stringValue: item.title },
-                description: { stringValue: item.description },
-                price: { doubleValue: item.price },
-                qty: { integerValue: item.qty },
-                image: { stringValue: item.image }
-              }
-            }
-          }))
-        }
-      }
-    };
-
-    await fetch(`${BASE_URL}/carts/${user.uid}?key=${FIREBASE_API_KEY}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fields: firestoreItems })
-    });
-  } catch (err) {
-    console.error("Error saving cart:", err);
-  }
-}
-
-// ---------------- Render Cart ----------------
-function renderCart() {
-  const container = $("#cartContainer");
-  container.empty();
-
-  if (cart.length === 0) {
-    container.html(`<h3 style="text-align:center; color:#555;">Your cart is empty</h3>`);
-    $(".cart-summary").hide();
-    return;
-  }
-
-  $(".cart-summary").show();
-
-  cart.forEach((item, index) => {
-    container.append(`
-      <div class="cart-item" data-index="${index}">
-        <img src="${item.image || 'https://via.placeholder.com/100'}" alt="${item.title}">
-        <div class="item-details">
-          <h3>${item.title}</h3>
-          <p>${item.description}</p>
-          <p class="price">₹${item.price}</p>
-          <div class="quantity-controls">
-            <button class="decreaseQty" style="color:black">-</button>
-            <span>${item.qty}</span>
-            <button class="increaseQty" style="color:black">+</button>
-          </div>
-          <button class="remove-btn">REMOVE</button>
-        </div>
-      </div>
-    `);
-  });
-
-  updateSummary();
-}
-
-// ---------------- Update Summary ----------------
-function updateSummary() {
-  let totalItems = 0, totalAmount = 0;
-  cart.forEach(item => {
-    totalItems += item.qty;
-    totalAmount += item.price * item.qty;
-  });
-
-  $("#totalItems").text(totalItems);
-  $("#totalAmount").text(totalAmount.toFixed(2));
-
-  saveCart(); // Save updated cart to Firestore
-}
-
-// ---------------- Add to Cart ----------------
-async function addToCart(productId) {
-  const qty = parseInt($(`#qty_${productId}`).val());
-  if (qty <= 0) return alert("Quantity must be at least 1");
-
-  const product = products.find(p => p.id === productId);
-  if (!product) return;
-
-  const existing = cart.find(item => item.id === productId);
-  if (existing) existing.qty += qty;
-  else {
-    cart.push({
-      id: product.id,
-      title: product.title,
-      price: product.price,
-      qty,
-      description: product.des || product.description || "",
-      image: product.image || "https://via.placeholder.com/150"
-    });
-  }
-
-  renderCart();
-}
-
-// ---------------- Quantity Controls ----------------
-$(document).on("click", ".increaseQty", function () {
-  const index = $(this).closest(".cart-item").data("index");
-  cart[index].qty += 1;
-  renderCart();
-});
-$(document).on("click", ".decreaseQty", function () {
-  const index = $(this).closest(".cart-item").data("index");
-  if (cart[index].qty > 1) cart[index].qty -= 1;
-  else cart.splice(index, 1);
-  renderCart();
-});
-
-// ---------------- Remove Item ----------------
-$(document).on("click", ".remove-btn", function () {
-  const index = $(this).closest(".cart-item").data("index");
-  cart.splice(index, 1);
-  renderCart();
-});
-
-// ---------------- Checkout ----------------
-$("#checkoutBtn").click(async () => {
-  const paymentMethod = $("#paymentMethod").val();
-  if (cart.length === 0) return alert("Your cart is empty!");
-
-  // Format order for Firestore
-  const firestoreItems = cart.map(item => ({
-    mapValue: { fields: {
-      id: { stringValue: item.id },
-      title: { stringValue: item.title },
-      description: { stringValue: item.description },
-      price: { doubleValue: item.price },
-      qty: { integerValue: item.qty },
-      image: { stringValue: item.image }
-    }}
-  }));
-
-  const order = {
-    fields: {
-      userEmail: { stringValue: user.email },
-      items: { arrayValue: { values: firestoreItems } },
-      totalAmount: { doubleValue: cart.reduce((sum, i) => sum + i.price * i.qty, 0) },
-      date: { stringValue: new Date().toLocaleString() },
-      paymentMethod: { stringValue: paymentMethod }
-    }
-  };
-
-  await fetch(`${BASE_URL}/orders?key=${FIREBASE_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(order)
-  });
-
-  alert(`Order placed successfully using ${paymentMethod.toUpperCase()}!`);
-
-  cart = [];
-  renderCart();
-});
-
-// ---------------- Logout ----------------
-$("#logoutBtn").click(() => {
-  sessionStorage.clear();
-  window.location.href = "index.html";
-});
-
-// ---------------- Initial Load ----------------
+// Initial load: fetch cart from DB
 $(document).ready(async () => {
-  await loadCart();
+  $("#userName").text(`Hello, ${user.name}`);
+  cart = await fetchCartFromDB();
+  renderCart();
 });
-
-*/
