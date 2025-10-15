@@ -1,9 +1,6 @@
-// js/auth.js
-
-// --- CONFIG ---
 const FIREBASE_API_KEY = "AIzaSyCCa_hDjwjubm1FXLuGo5YMfRIueoDgUew";
 const FIREBASE_PROJECT_ID = "shopnfinity";
-const ADMIN_EMAIL = "hariprasath7112@gmail.com"; // your admin Gmail
+const ADMIN_EMAIL = "hariprasath7112@gmail.com"; 
 
 // Handle Google Login response
 async function handleCredentialResponse(response) {

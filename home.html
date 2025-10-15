@@ -20,12 +20,20 @@
 </header>
 
   <main>
-    <section class="filters">
+        <section class="filters" style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
       <label for="categorySelect">Filter by Category:</label>
       <select id="categorySelect">
         <option value="">All</option>
       </select>
+
+      <input 
+        type="text" 
+        id="searchProduct" 
+        placeholder="🔍 Search products..." 
+        style="flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px;"
+      />
     </section>
+
 
     <section id="productList" class="products"></section>
 

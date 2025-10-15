@@ -17,8 +17,6 @@ function toFirestoreFields(obj) {
   return fields;
 }
 
-// --------- Firestore Helpers ---------
-
 // Fetch cart for current user
 async function fetchCartFromDB() {
   try {
@@ -175,8 +173,27 @@ $(document).on("click", ".remove-btn", async function () {
 $("#checkoutBtn").click(async () => {
   const paymentMethod = $("#paymentMethod").val();
   if (cart.length === 0) return alert("Your cart is empty!");
-  
-  alert(`Order placed successfully using ${paymentMethod.toUpperCase()} payment!`);
+
+  // Calculate total
+  const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+  // Generate Order ID
+  const orderId = "ORD" + new Date().getTime(); // unique based on timestamp
+  const date = new Date().toLocaleString();
+
+  // Create order object
+  const order = {
+    id: orderId,
+    userEmail: user.email,
+    items: cart,
+    totalAmount,
+    paymentMethod,
+    date,
+    status: "Pending"
+  };
+
+  // Save order in Firestore
+  await createOrderInDB(order);
 
   // Clear cart both locally and in DB
   for (let item of cart) {
@@ -185,7 +202,10 @@ $("#checkoutBtn").click(async () => {
   cart = [];
   sessionStorage.removeItem("cart");
   renderCart();
+
+  alert(`Order placed successfully! Order ID: ${orderId}`);
 });
+
 
 // Logout
 $("#logoutBtn").click(() => {
@@ -199,3 +219,43 @@ $(document).ready(async () => {
   cart = await fetchCartFromDB();
   renderCart();
 });
+
+// Back to Home button functionality
+document.getElementById("backHomeBtn").addEventListener("click", function() {
+    window.location.href = "home.html"; 
+});
+
+//place order
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (let key in obj) {
+    if (typeof obj[key] === "number") fields[key] = { integerValue: obj[key] };
+    else if (typeof obj[key] === "string") fields[key] = { stringValue: obj[key] };
+    else if (Array.isArray(obj[key])) {
+      fields[key] = {
+        arrayValue: {
+          values: obj[key].map(item => ({ mapValue: { fields: toFirestoreFields(item) } }))
+        }
+      };
+    }
+  }
+  return fields;
+}
+
+// Add new order in Firestore
+async function createOrderInDB(order) {
+  try {
+    const orderId = order.id; 
+    await fetch(`${BASE_URL}/users/${user.uid}/orders/${orderId}`, {
+      method: "PATCH", 
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${user.idToken}`
+      },
+      body: JSON.stringify({ fields: toFirestoreFields(order) })
+    });
+    console.log("Order saved in Firestore:", orderId);
+  } catch (err) {
+    console.error("Error saving order:", err);
+  }
+}

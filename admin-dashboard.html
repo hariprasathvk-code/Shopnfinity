@@ -110,6 +110,29 @@
       background-color: #ccc;
       cursor: not-allowed;
     }
+    .main-content, 
+    .main-content h1, 
+    .main-content h2, 
+    .main-content h3, 
+    .main-content p, 
+    .main-content td, 
+    .main-content th, 
+    .main-content label, 
+    .main-content span {
+      color: #000;
+    }
+
+    #searchCategory, #searchProduct {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      transition: 0.3s;
+    }
+    #searchCategory:focus, #searchProduct:focus {
+      border-color: #007bff;
+      outline: none;
+    }
+
+
 
   </style>
 </head>
@@ -120,7 +143,8 @@
     <h2>Admin</h2>
     <button class="menu-btn active" data-section="categoriesSection">Categories</button>
     <button class="menu-btn" data-section="productsSection">Products</button>
-    <button class="menu-btn" data-section="customersSection">Customers</button>
+    <button class="menu-btn" data-section="ordersSection">Orders</button>
+    <button class="menu-btn" data-section="usersSection">Users</button>
     <button class="menu-btn" data-section="reportsSection">Reports</button>
     <button id="logoutBtn">Logout</button>
   </div>
@@ -137,8 +161,12 @@
     <!-- Categories -->
     <section id="categoriesSection" class="admin-section" style="display:block;">
       <h2>Categories</h2>
-      <input type="text" id="newCategory" placeholder="Category Name" />
-      <button id="addCategoryBtn">Add Category</button>
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+        <input type="text" id="newCategory" placeholder="Category Name" />
+        <button id="addCategoryBtn">Add Category</button>
+        <input type="text" id="searchCategory" placeholder="🔍 Search categories..." style="margin-left:auto; padding:6px 10px; width:200px;">
+      </div>
+
       <table id="categoriesTable">
         <thead>
           <tr><th>Name</th><th>Actions</th></tr>
@@ -151,15 +179,20 @@
     <!-- Products -->
     <section id="productsSection" class="admin-section">
       <h2>Products</h2>
-      <div class="product-form">
-        <input type="text" id="productTitle" placeholder="Title" />
-        <input type="text" id="productDesc" placeholder="Description" />
-        <input type="number" id="productPrice" placeholder="Price" />
-        <input type="number" id="productQty" placeholder="Quantity" />
-        <input type="text" id="productImage" placeholder="Image URL" />
-        <select id="productCat"></select>
-        <button id="addProductBtn">Add Product</button>
-      </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div class="product-form">
+            <input type="text" id="productTitle" placeholder="Title" />
+            <input type="text" id="productDesc" placeholder="Description" />
+            <input type="number" id="productPrice" placeholder="Price" />
+            <input type="number" id="productQty" placeholder="Quantity" />
+            <input type="text" id="productImage" placeholder="Image URL" />
+            <select id="productCat"></select>
+            <button id="addProductBtn">Add Product</button>
+          </div>
+          <input type="text" id="searchProduct" placeholder="🔍 Search products..." style="padding:6px 10px; width:200px;">
+        </div>
+
+        
       <table id="productTable">
         <thead>
           <tr><th>Title</th><th>Description</th><th>Category</th><th>Price</th><th>Qty</th><th>Image</th><th>Actions</th></tr>
@@ -168,18 +201,45 @@
       </table>
       <div class="pagination" id="prodPagination"></div>
     </section>
+  <section id="ordersSection" class="admin-section">
+  <h2>Orders</h2>
+  <table id="adminOrderTable">
+  <thead>
+    <tr>
+      <th>Order ID</th>
+      <th>User Email</th>
+      <th>Date</th>
+      <th>Total</th>
+      <th>Payment</th>
+      <th>Products</th>
+      <th>Status</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+</tbody>
+  </table>
+</section>
 
     <!-- Customers -->
-    <section id="customersSection" class="admin-section">
-      <h2>Customers</h2>
-      <table id="customerTable">
-        <thead>
-          <tr><th>Name</th><th>Email</th><th>Credit Limit</th><th>Credit Used</th><th>Actions</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div class="pagination" id="custPagination"></div>
-    </section>
+    <!-- Users -->
+      <section id="usersSection" class="admin-section">
+        <h2>Users</h2>
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>Photo</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>UID</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
 
     <!-- Reports -->
     <section id="reportsSection" class="admin-section">
@@ -189,9 +249,10 @@
         <label>To: <input type="date" id="reportTo" /></label>
       </div>
       <div class="report-buttons">
-        <button id="viewCustomerReport">Customer Report</button>
-        <button id="viewInventoryReport">Inventory Report</button>
-        <button id="viewSalesReport">Sales Report</button>
+        <button id="viewCustomerReport">Download Users Report</button>
+        <button id="viewInventoryReport">Download Products Report</button>
+        <button id="viewSalesReport">Download Orders Report</button>
+
       </div>
       <div id="reportContainer"></div>
       <canvas id="reportChart" width="400" height="200"></canvas>
@@ -199,6 +260,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <script src="js/firebase.js"></script>
   <script src="js/admin.js"></script>
 
@@ -212,6 +275,54 @@
       $('.admin-section').hide();
       $('#' + sectionId).show();
     });
+
+
+    async function generateUsersReport() {
+  const users = await fetchAllUsers();
+  if (users.length === 0) return alert("No users found!");
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.text("Users Report", 14, 20);
+  let y = 30;
+  
+  users.forEach((u, index) => {
+    doc.text(`${index+1}. ${u.name} | ${u.email} | ${u.uid}`, 14, y);
+    y += 10;
+  });
+
+  doc.save("Users_Report.pdf");
+}
+
+$('#viewCustomerReport').click(generateUsersReport);
+$('#viewInventoryReport').click(async () => {
+  const products = await fetchAllProducts();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.text("Inventory Report", 14, 20);
+  let y = 30;
+  products.forEach((p, index) => {
+    doc.text(`${index+1}. ${p.title} | ${p.cat_id} | ${p.price} | ${p.qty}`, 14, y);
+    y += 10;
+  });
+  doc.save("Inventory_Report.pdf");
+});
+
+$('#viewSalesReport').click(async () => {
+  const orders = await fetchAllOrders();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.text("Sales Report", 14, 20);
+  let y = 30;
+  orders.forEach((o, index) => {
+    const items = (o.items || []).map(i => `${i.title} x${i.qty}`).join(", ");
+    doc.text(`${index+1}. ${o.userEmail} | ${o.date} | ₹${o.totalAmount} | ${items}`, 14, y);
+    y += 10;
+  });
+  doc.save("Sales_Report.pdf");
+});
+
   </script>
 
 </body>

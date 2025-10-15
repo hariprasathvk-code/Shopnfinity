@@ -1,117 +1,79 @@
-// js/orders.js
-
-// Check login
-//const user = JSON.parse(sessionStorage.getItem("user"));
-//if (!user) {
-  //alert("Please login first!");
-  //window.location.href = "index.html";
-//}
-
-// Back to Home
-$('#backHome').click(() => {
-  window.location.href = "home.html";
-});
-
-// Load cart
-let cart = JSON.parse(sessionStorage.getItem("cart")) || [];
-
-function renderCart() {
-  const tbody = $('#cartTable tbody');
-  tbody.empty();
-  let total = 0;
-
-  cart.forEach((item, index) => {
-    const itemTotal = item.price * item.qty;
-    total += itemTotal;
-    tbody.append(`
-      <tr data-index="${index}">
-        <td>${item.title}</td>
-        <td>${item.cat_id}</td>
-        <td>₹${item.price}</td>
-        <td contenteditable="true">${item.qty}</td>
-        <td>₹${itemTotal}</td>
-        <td><button class="removeItem">Remove</button></td>
-      </tr>
-    `);
-  });
-
-  $('#cartTotal').text(total);
-  sessionStorage.setItem("cart", JSON.stringify(cart));
+const user = JSON.parse(sessionStorage.getItem("user"));
+if (!user) {
+  alert("Please login first!");
+  window.location.href = "index.html";
 }
 
-$(document).on('input', '#cartTable td[contenteditable]', function() {
-  const index = $(this).closest('tr').data('index');
-  let qty = parseInt($(this).text());
-  if (isNaN(qty) || qty < 1) qty = 1;
-  cart[index].qty = qty;
-  renderCart();
-});
+// Firestore base
+const PROJECT_ID = "shopnfinity";
+const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
-$(document).on('click', '.removeItem', function() {
-  const index = $(this).closest('tr').data('index');
-  cart.splice(index, 1);
-  renderCart();
-});
-
-renderCart();
-
-// Place Order
-$('#placeOrderBtn').click(() => {
-  if(cart.length===0) return alert("Cart is empty!");
-  
-  const paymentMethod = $('#paymentMethod').val();
-  const totalAmount = cart.reduce((sum,item)=>sum+item.price*item.qty,0);
-  
-  if(paymentMethod==='credit' && totalAmount > user.creditLimit - (user.creditUsed||0)) {
-    return alert("Not enough credit limit!");
+// Helper: Convert JS object to Firestore fields
+function toFirestoreFields(obj) {
+  const fields = {};
+  for (let key in obj) {
+    if (typeof obj[key] === "number") fields[key] = { integerValue: obj[key] };
+    else if (typeof obj[key] === "string") fields[key] = { stringValue: obj[key] };
+    else if (Array.isArray(obj[key])) {
+      fields[key] = {
+        arrayValue: {
+          values: obj[key].map(item => ({ mapValue: { fields: toFirestoreFields(item) } }))
+        }
+      };
+    }
   }
+  return fields;
+}
 
-  // Update user credit if credit payment
-  if(paymentMethod==='credit'){
-    user.creditUsed = (user.creditUsed||0)+totalAmount;
-    sessionStorage.setItem("user", JSON.stringify(user));
+// Helper: Parse Firestore document
+function parseFirestoreDoc(doc) {
+  const fields = {};
+  for (let key in doc.fields) {
+    const val = doc.fields[key];
+    if (val.stringValue !== undefined) fields[key] = val.stringValue;
+    else if (val.integerValue !== undefined) fields[key] = parseInt(val.integerValue);
+    else if (val.arrayValue !== undefined) {
+      fields[key] = val.arrayValue.values.map(v => {
+        const subFields = {};
+        for (let k in v.mapValue.fields) {
+          const subVal = v.mapValue.fields[k];
+          subFields[k] = subVal.stringValue ?? parseInt(subVal.integerValue ?? 0);
+        }
+        return subFields;
+      });
+    }
   }
+  return { id: doc.name.split("/").pop(), ...fields };
+}
 
-  // Generate Order
-  const orders = JSON.parse(sessionStorage.getItem("orders")) || [];
-  const orderId = "ORD"+(orders.length+1).toString().padStart(4,'0');
-  const date = new Date().toLocaleString();
+// Fetch orders for current user
+async function fetchOrdersFromDB() {
+  try {
+    const res = await fetch(`${BASE_URL}/users/${user.uid}/orders`, {
+      headers: { Authorization: `Bearer ${user.idToken}` }
+    });
+    const data = await res.json();
+    if (!data.documents) return [];
+    return data.documents.map(parseFirestoreDoc);
+  } catch (err) {
+    console.error("Error fetching orders:", err);
+    return [];
+  }
+}
 
-  const order = {
-    id: orderId,
-    userEmail: user.email,
-    items: cart,
-    totalAmount,
-    paymentMethod,
-    date
-  };
-  orders.push(order);
-  sessionStorage.setItem("orders", JSON.stringify(orders));
-
-  // Reduce product stock
-  let products = JSON.parse(sessionStorage.getItem("products")) || [];
-  cart.forEach(item => {
-    const prod = products.find(p=>p.title===item.title);
-    if(prod) prod.qty -= item.qty;
-  });
-  sessionStorage.setItem("products", JSON.stringify(products));
-
-  alert(`Order placed successfully! Order ID: ${orderId}`);
-  cart = [];
-  sessionStorage.setItem("cart", JSON.stringify(cart));
-  renderCart();
-  renderOrderHistory();
-});
-
-// Render Order History
-function renderOrderHistory() {
-  const orders = JSON.parse(sessionStorage.getItem("orders")) || [];
+// Render order history
+async function renderOrderHistory() {
+  const orders = await fetchOrdersFromDB();
   const tbody = $('#orderTable tbody');
   tbody.empty();
 
-  const userOrders = orders.filter(o=>o.userEmail===user.email);
-  userOrders.forEach(o => {
-    const productsList = o.items.map(i=>`${i.title} (x${i.qty})`).join(", ");
+  if (orders.length === 0) {
+    tbody.append('<tr><td colspan="6" style="text-align:center;">No orders found</td></tr>');
+    return;
+  }
+
+  orders.forEach(o => {
+    const productsList = o.items.map(i => `${i.title} (x${i.qty})`).join(", ");
     tbody.append(`
       <tr>
         <td>${o.id}</td>
@@ -119,9 +81,18 @@ function renderOrderHistory() {
         <td>₹${o.totalAmount}</td>
         <td>${o.paymentMethod}</td>
         <td>${productsList}</td>
+        <td>${o.status || "Pending"}</td>
       </tr>
     `);
   });
 }
 
-renderOrderHistory();
+// Back to Home button
+$('#backHome').click(() => {
+  window.location.href = "home.html";
+});
+
+// Initial load
+$(document).ready(async () => {
+  await renderOrderHistory();
+});

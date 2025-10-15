@@ -1,16 +1,13 @@
-// firebase.js
-
-// --------- Firebase Configuration ---------
-const PROJECT_ID = "shopnfinity"; // your project ID
+const PROJECT_ID = "shopnfinity"; 
 const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
-// --------- Get idToken from session ---------
+// Get idToken from session 
 function getIdToken() {
   const user = JSON.parse(sessionStorage.getItem("user"));
   return user?.idToken || "";
 }
 
-// --------- Helper: Convert JS object to Firestore fields ---------
+//  Helper: Convert JS object to Firestore fields 
 function toFirestoreFields(obj) {
   const fields = {};
   for (let key in obj) {
@@ -20,7 +17,7 @@ function toFirestoreFields(obj) {
   return fields;
 }
 
-// --------- Fetch documents from collection ---------
+//  Fetch documents from collection
 async function getDocuments(collection) {
   const res = await fetch(`${BASE_URL}/${collection}`, {
     headers: { Authorization: `Bearer ${getIdToken()}` }
@@ -40,7 +37,7 @@ async function getDocuments(collection) {
   });
 }
 
-// --------- Add document ---------
+// Add document 
 async function addDocument(collection, obj) {
   const body = { fields: toFirestoreFields(obj) };
   const res = await fetch(`${BASE_URL}/${collection}`, {
@@ -54,7 +51,7 @@ async function addDocument(collection, obj) {
   return await res.json();
 }
 
-// --------- Update document ---------
+//  Update document 
 async function updateDocument(collection, docId, obj) {
   const fields = toFirestoreFields(obj);
   const updateMask = Object.keys(obj).map(f => `updateMask.fieldPaths=${f}`).join("&");
@@ -69,7 +66,7 @@ async function updateDocument(collection, docId, obj) {
   return await res.json();
 }
 
-// --------- Delete document ---------
+// Delete document 
 async function deleteDocument(collection, docId) {
   const res = await fetch(`${BASE_URL}/${collection}/${docId}`, {
     method: "DELETE",

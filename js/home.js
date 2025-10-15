@@ -1,6 +1,3 @@
-// js/home.js
-
-// Get user info
 const user = JSON.parse(sessionStorage.getItem("user"));
 if (!user) window.location.href = "index.html";
 
@@ -27,7 +24,7 @@ let products = [];
 let currentPage = 1;
 const pageSize = 10;
 
-// --------- Firestore Helper ---------
+//  Firestore Helper 
 const PROJECT_ID = "shopnfinity";
 const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
@@ -104,7 +101,7 @@ function toFirestoreFields(obj) {
   return fields;
 }
 
-// --------- Load Categories ---------
+// Load Categories
 async function fetchCategories() {
   const categories = await getDocuments("categories");
   const select = $('#categorySelect');
@@ -112,7 +109,7 @@ async function fetchCategories() {
   categories.forEach(c => select.append(`<option value="${c.name}">${c.name}</option>`));
 }
 
-// --------- Load Products ---------
+// Load Products 
 async function fetchProducts(category = "") {
   let allProducts = await getDocuments("products");
 
@@ -127,11 +124,11 @@ async function fetchProducts(category = "") {
   renderProducts();
 }
 
-// --------- Render Products with Pagination ---------
-function renderProducts() {
+// Render Products with Pagination 
+function renderProducts(list = products) {
   const start = (currentPage - 1) * pageSize;
   const end = start + pageSize;
-  const pageProducts = products.slice(start, end);
+  const pageProducts = list.slice(start, end);
 
   const container = $('#productList');
   container.empty();
@@ -156,11 +153,11 @@ function renderProducts() {
     `);
   });
 
-  const totalPages = Math.ceil(products.length / pageSize);
+  const totalPages = Math.ceil(list.length / pageSize);
   $('#pageInfo').text(`Page ${currentPage} of ${totalPages}`);
 }
 
-// --------- Pagination Buttons ---------
+//  Pagination Buttons
 $('#prevPage').click(() => {
   if (currentPage > 1) {
     currentPage--;
@@ -175,13 +172,13 @@ $('#nextPage').click(() => {
   }
 });
 
-// --------- Category Filter ---------
+// Category Filter
 $('#categorySelect').change(() => {
   const category = $('#categorySelect').val();
   fetchProducts(category);
 });
 
-// --------- Cart Functions ---------
+// Cart Functions
 function updateCartCount() {
   const cart = JSON.parse(sessionStorage.getItem("cart")) || [];
   const total = cart.reduce((sum, item) => sum + item.qty, 0);
@@ -215,13 +212,13 @@ async function addToCart(productId) {
   alert(`${qty} ${product.title} added to cart`);
   updateCartCount();
 
-  // --- Sync with Firestore ---
+  // Sync with Firestor
   for (let item of cart) {
     await updateCartItemInDB(item);
   }
 }
 
-// --------- Initial Load ---------
+//  Initial Load 
 $(document).ready(async () => {
   await fetchCategories();
   await fetchProducts();
@@ -244,3 +241,51 @@ $(document).ready(async () => {
   sessionStorage.setItem("cart", JSON.stringify(mergedCart));
   updateCartCount();
 });
+
+async function placeOrder(userEmail, paymentMethod) {
+  const cart = JSON.parse(sessionStorage.getItem("cart")) || [];
+  if (cart.length === 0) return alert("Cart is empty!");
+
+  const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const date = new Date().toISOString(); // or format as needed
+
+  // Prepare Firestore fields
+  const orderData = {
+    userEmail,
+    date,
+    totalAmount,
+    paymentMethod,
+    status: "Pending",
+    items: cart.map(item => ({
+      title: item.title,
+      qty: item.qty,
+      price: item.price
+    }))
+  };
+
+  try {
+    await addDocument("orders", orderData); // Save in Firestore
+    alert("Order placed successfully!");
+    sessionStorage.removeItem("cart"); // Clear cart
+    updateCartCount();
+  } catch (err) {
+    console.error("Error placing order:", err);
+    alert("Failed to place order!");
+  }
+}
+
+
+$('#searchProduct').on('input', function() {
+  const query = $(this).val().toLowerCase();
+
+  const filtered = products.filter(p => {
+    const title = p.title.toLowerCase();
+    const des = (p.des || p.description || "").toLowerCase();
+    const category = (p.cat_id || "").toLowerCase();
+    return title.includes(query) || des.includes(query) || category.includes(query);
+  });
+
+  currentPage = 1; // Reset pagination
+  renderProducts(filtered);
+});
+

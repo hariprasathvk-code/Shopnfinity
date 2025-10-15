@@ -1,4 +1,3 @@
-/* ---------------- General ---------------- */
 body {
   font-family: "Poppins", sans-serif;
   background: linear-gradient(120deg, #2b5876, #4e4376);
@@ -104,19 +103,19 @@ header .user-info button:hover {
   font-size: 14px;
 }
 
-/* ---------------- Product Cards ---------------- */
+/* ---------------- Products Grid ---------------- */
 .products {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
   margin: 20px 30px;
 }
 
+/* ---------------- Product Card ---------------- */
 .product-card {
   background: #fff;
   padding: 15px;
   border-radius: 15px;
-  width: 220px;
   text-align: center;
   box-shadow: 0 3px 15px rgba(0,0,0,0.1);
   display: flex;
@@ -124,6 +123,7 @@ header .user-info button:hover {
   justify-content: space-between;
 }
 
+/* Product image */
 .product-card img {
   width: 100%;
   height: 150px;
@@ -132,6 +132,7 @@ header .user-info button:hover {
   margin-bottom: 10px;
 }
 
+/* Product title & price */
 .product-card h3 {
   font-size: 16px;
   margin: 5px 0;
@@ -144,6 +145,7 @@ header .user-info button:hover {
   color: #555;
 }
 
+/* Quantity input */
 .product-card input[type="number"] {
   width: 60px;
   padding: 4px;
@@ -153,6 +155,7 @@ header .user-info button:hover {
   text-align: center;
 }
 
+/* Add to cart button */
 .product-card button {
   background: #4e4376;
   color: #fff;
@@ -167,6 +170,7 @@ header .user-info button:hover {
 .product-card button:hover {
   background: #2b5876;
 }
+
 
 /* ---------------- Pagination ---------------- */
 .pagination {
